@@ -4,38 +4,153 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
 
-<changeSet id="001" author="dev">
-<createTable tableName="loan_application">
-    <column name="id" type="UUID">
-        <constraints primaryKey="true" nullable="false"/>
-    </column>
-    <column name="first_name" type="VARCHAR(32)">
-        <constraints nullable="false"/>
-    </column>
-    <column name="last_name" type="VARCHAR(32)">
-        <constraints nullable="false"/>
-    </column>
-    <column name="personal_code" type="VARCHAR(11)">
-        <constraints nullable="false"/>
-    </column>
-    <column name="loan_period_months" type="INTEGER">
-        <constraints nullable="false"/>
-    </column>
-    <column name="interest_margin" type="NUMERIC(5,3)">
-        <constraints nullable="false"/>
-    </column>
-    <column name="base_interest_rate" type="NUMERIC(5,3)">
-        <constraints nullable="false"/>
-    </column>
-    <column name="loan_amount" type="NUMERIC(12,2)">
-        <constraints nullable="false"/>
-    </column>
-    <column name="status" type="VARCHAR(20)">
-        <constraints nullable="false"/>
-    </column>
-    <column name="created_at" type="TIMESTAMP">
-        <constraints nullable="false"/>
-    </column>
-</createTable>
-</changeSet>
+    <changeSet id="001" author="dev">
+        <createTable tableName="loan_application">
+
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <column name="first_name" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="last_name" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="personal_code" type="VARCHAR(11)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="birth_date" type="DATE">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="loan_period_months" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="interest_margin" type="NUMERIC(5,3)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="base_interest_rate" type="NUMERIC(5,3)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="loan_amount" type="NUMERIC(12,2)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="status" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="rejection_reason" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+
+        </createTable>
+    </changeSet>
+
+    <changeSet id="002" author="dev">
+        <sql>
+            ALTER TABLE loan_application
+                ADD CONSTRAINT ck_loan_application_status
+                    CHECK (status IN ('NEW','IN_REVIEW','APPROVED','REJECTED'));
+        </sql>
+    </changeSet>
+
+    <changeSet id="003" author="dev">
+        <sql>
+            ALTER TABLE loan_application
+                ADD CONSTRAINT ck_personal_code_format
+                    CHECK (personal_code ~ '^[1-6][0-9]{10}$');
+        </sql>
+    </changeSet>
+
+    <changeSet id="004" author="dev">
+        <sql>
+            CREATE UNIQUE INDEX ux_active_loan_application
+                ON loan_application(personal_code)
+                WHERE status IN ('NEW','IN_REVIEW');
+        </sql>
+    </changeSet>
+
+    <changeSet id="005" author="dev">
+        <createTable tableName="loan_payment_schedule">
+
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <column name="loan_application_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="payment_number" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="payment_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="principal" type="NUMERIC(12,2)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="interest" type="NUMERIC(12,2)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="total_payment" type="NUMERIC(12,2)">
+                <constraints nullable="false"/>
+            </column>
+
+        </createTable>
+    </changeSet>
+
+    <changeSet id="006" author="dev">
+        <addForeignKeyConstraint
+                baseTableName="loan_payment_schedule"
+                baseColumnNames="loan_application_id"
+                referencedTableName="loan_application"
+                referencedColumnNames="id"
+                constraintName="fk_payment_loan_application"/>
+    </changeSet>
+
+    <changeSet id="007" author="dev">
+        <sql>
+            UPDATE loan_application
+            SET status = 'STARTED'
+            WHERE status = 'NEW';
+        </sql>
+        <sql>
+            DROP INDEX IF EXISTS ux_active_loan_application;
+        </sql>
+        <sql>
+            ALTER TABLE loan_application
+                DROP CONSTRAINT IF EXISTS ck_loan_application_status;
+        </sql>
+        <sql>
+            ALTER TABLE loan_application
+                ADD CONSTRAINT ck_loan_application_status
+                    CHECK (status IN ('STARTED','IN_REVIEW','APPROVED','REJECTED'));
+        </sql>
+        <sql>
+            CREATE UNIQUE INDEX ux_active_loan_application
+                ON loan_application(personal_code)
+                WHERE status IN ('STARTED','IN_REVIEW');
+        </sql>
+    </changeSet>
 </databaseChangeLog>

@@ -1,0 +1,25 @@
+package com.example.backend.loan.dto;
+
+import com.example.backend.loan.LoanStatus;
+import com.example.backend.loan.RejectionReason;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class DecisionResponse {
+
+    private UUID id;
+    private LoanStatus status;
+    private RejectionReason rejectionReason;
+}
+
+
+
+
