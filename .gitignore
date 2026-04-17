@@ -1,0 +1,11 @@
+.idea/
+*.iml
+
+# OS junk files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
