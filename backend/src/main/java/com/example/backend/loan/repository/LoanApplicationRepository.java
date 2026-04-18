@@ -6,12 +6,14 @@ import com.example.backend.loan.LoanStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 public interface LoanApplicationRepository extends JpaRepository<LoanApplication, UUID> {
 
 	boolean existsByPersonalCodeAndStatusIn(String personalCode, Collection<LoanStatus> statuses);
+
+    List<LoanApplication> findAllByOrderByCreatedAtDesc();
+
+	List<LoanApplication> findByStatusOrderByCreatedAtDesc(LoanStatus status);
 }
-
-
-

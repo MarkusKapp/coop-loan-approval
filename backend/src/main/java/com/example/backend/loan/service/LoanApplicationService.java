@@ -26,7 +26,9 @@ import java.time.LocalDate;
 import java.time.Period;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +42,40 @@ public class LoanApplicationService {
     private final LoanApplicationResponseMapper loanApplicationResponseMapper;
     @Value("${loan.customer.max-age:70}")
     private int maxCustomerAge;
+
+    @Transactional(readOnly = true)
+    public List<LoanApplicationResponse> getAllApplications() {
+        List<LoanApplication> applications = loanApplicationRepository.findAllByOrderByCreatedAtDesc();
+        return mapApplicationsWithSchedules(applications);
+    }
+
+    @Transactional(readOnly = true)
+    public List<LoanApplicationResponse> getInReviewApplications() {
+        List<LoanApplication> applications = loanApplicationRepository.findByStatusOrderByCreatedAtDesc(LoanStatus.IN_REVIEW);
+        return mapApplicationsWithSchedules(applications);
+    }
+
+    private List<LoanApplicationResponse> mapApplicationsWithSchedules(List<LoanApplication> applications) {
+        if (applications.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> applicationIds = applications.stream()
+                .map(LoanApplication::getId)
+                .toList();
+
+        Map<UUID, List<LoanPaymentSchedule>> schedulesByApplicationId = loanPaymentScheduleRepository
+                .findByLoanApplicationIdInOrderByLoanApplicationIdAscPaymentNumberAsc(applicationIds)
+                .stream()
+                .collect(Collectors.groupingBy(LoanPaymentSchedule::getLoanApplicationId));
+
+        return applications.stream()
+                .map(application -> loanApplicationResponseMapper.toResponse(
+                        application,
+                        schedulesByApplicationId.getOrDefault(application.getId(), List.of())
+                ))
+                .toList();
+    }
 
     @Transactional
     public LoanApplicationResponse createApplication(CreateLoanApplicationRequest request) {
@@ -77,7 +113,7 @@ public class LoanApplicationService {
                 application.getInterestMargin(),
                 application.getBaseInterestRate(),
                 application.getLoanPeriodMonths(),
-                LocalDate.now().plusMonths(1)
+                LocalDate.now()
         );
         loanPaymentScheduleRepository.saveAll(schedule);
 
@@ -118,8 +154,4 @@ public class LoanApplicationService {
     }
 
 }
-
-
-
-
 

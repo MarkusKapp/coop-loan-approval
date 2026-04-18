@@ -14,6 +14,13 @@ import java.util.List;
 public interface LoanApplicationResponseMapper {
 
     @Mapping(target = "id", source = "app.id")
+    @Mapping(target = "firstName", source = "app.firstName")
+    @Mapping(target = "lastName", source = "app.lastName")
+    @Mapping(target = "personalCode", source = "app.personalCode")
+    @Mapping(target = "loanPeriodMonths", source = "app.loanPeriodMonths")
+    @Mapping(target = "interestMargin", source = "app.interestMargin")
+    @Mapping(target = "baseInterestRate", source = "app.baseInterestRate")
+    @Mapping(target = "loanAmount", source = "app.loanAmount")
     @Mapping(target = "status", source = "app.status")
     @Mapping(target = "rejectionReason", source = "app.rejectionReason")
     @Mapping(target = "birthDate", source = "app.birthDate")
