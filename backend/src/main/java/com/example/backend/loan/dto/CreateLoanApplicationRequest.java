@@ -38,15 +38,15 @@ public class CreateLoanApplicationRequest {
     private Integer loanPeriodMonths;
 
     @NotNull
-    @DecimalMin(value = "0.000", inclusive = true)
+    @DecimalMin(value = "0.000")
     private BigDecimal interestMargin;
 
     @NotNull
-    @DecimalMin(value = "0.000", inclusive = true)
+    @DecimalMin(value = "0.000")
     private BigDecimal baseInterestRate;
 
     @NotNull
-    @DecimalMin(value = "5000.00", inclusive = true)
+    @DecimalMin(value = "5000.00")
     private BigDecimal loanAmount;
 }
 

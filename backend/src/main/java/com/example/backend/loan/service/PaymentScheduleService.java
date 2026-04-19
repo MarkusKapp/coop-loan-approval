@@ -1,5 +1,6 @@
 package com.example.backend.loan.service;
 
+import com.example.backend.loan.entity.LoanApplication;
 import com.example.backend.loan.entity.LoanPaymentSchedule;
 import com.example.backend.loan.mapper.LoanPaymentScheduleMapper;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,17 @@ public class PaymentScheduleService {
     private static final int MONEY_SCALE = 2;
     private final LoanPaymentScheduleMapper loanPaymentScheduleMapper;
 
+    public List<LoanPaymentSchedule> buildAnnuitySchedule(LoanApplication application, LocalDate currentDate) {
+        return buildAnnuitySchedule(
+                application.getId(),
+                application.getLoanAmount(),
+                application.getInterestMargin(),
+                application.getBaseInterestRate(),
+                application.getLoanPeriodMonths(),
+                currentDate
+        );
+    }
+
     public List<LoanPaymentSchedule> buildAnnuitySchedule(
             UUID loanApplicationId,
             BigDecimal loanAmount,
@@ -37,15 +49,12 @@ public class PaymentScheduleService {
         List<LoanPaymentSchedule> result = new ArrayList<>(periodMonths);
 
         for (int i = 1; i <= periodMonths; i++) {
-            BigDecimal interest;
+            BigDecimal interest = remaining.multiply(monthlyRate).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
             BigDecimal principal;
 
             if (i == periodMonths) {
-                // Final payment is adjusted to clear the remaining balance exactly.
-                interest = remaining.multiply(monthlyRate).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
                 principal = remaining.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
             } else {
-                interest = remaining.multiply(monthlyRate).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
                 principal = monthlyPayment.subtract(interest).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
                 if (principal.compareTo(remaining) > 0) {
                     principal = remaining.setScale(MONEY_SCALE, RoundingMode.HALF_UP);
@@ -81,5 +90,3 @@ public class PaymentScheduleService {
         return BigDecimal.valueOf(payment).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
     }
 }
-
-

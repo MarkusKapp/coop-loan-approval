@@ -55,6 +55,8 @@ public class LoanApplicationService {
         return mapApplicationsWithSchedules(applications);
     }
 
+
+    // Helper method for not getting N + 1 problem, instead its always 2 queries.
     private List<LoanApplicationResponse> mapApplicationsWithSchedules(List<LoanApplication> applications) {
         if (applications.isEmpty()) {
             return List.of();
@@ -90,6 +92,7 @@ public class LoanApplicationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Customer already has an active application");
         }
 
+        LocalDate currentDate = LocalDate.now();
         LocalDate birthDate = personalCodeValidator.extractBirthDate(request.getPersonalCode());
         LoanApplication application = loanApplicationMapper.toNewEntity(request, birthDate);
 
@@ -99,7 +102,7 @@ public class LoanApplicationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Customer already has an active application", ex);
         }
 
-        int age = Period.between(birthDate, LocalDate.now()).getYears();
+        int age = Period.between(birthDate, currentDate).getYears();
         if (age > maxCustomerAge) {
             application.setStatus(LoanStatus.REJECTED);
             application.setRejectionReason(RejectionReason.CUSTOMER_TOO_OLD);
@@ -107,14 +110,8 @@ public class LoanApplicationService {
             return loanApplicationResponseMapper.toResponse(rejected, Collections.emptyList());
         }
 
-        List<LoanPaymentSchedule> schedule = paymentScheduleService.buildAnnuitySchedule(
-                application.getId(),
-                application.getLoanAmount(),
-                application.getInterestMargin(),
-                application.getBaseInterestRate(),
-                application.getLoanPeriodMonths(),
-                LocalDate.now()
-        );
+        List<LoanPaymentSchedule> schedule = paymentScheduleService.buildAnnuitySchedule(application, currentDate);
+
         loanPaymentScheduleRepository.saveAll(schedule);
 
         application.setStatus(LoanStatus.IN_REVIEW);

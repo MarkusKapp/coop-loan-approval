@@ -13,23 +13,14 @@ public class EstonianPersonalCodeValidator {
     public boolean isValid(String code) {
         if (code == null || !code.matches("\\d{11}")) return false;
 
-        BirthDate bd;
         try {
-            bd = parseBirthDate(code);
+            parseBirthDate(code);
+            // LocalDate.of validates the BirthDate
         } catch (RuntimeException ex) {
             return false;
         }
 
-        int month = bd.month();
-        int day = bd.day();
-
-        if (month < 1 || month > 12) return false;
-        if (day < 1 || day > 31) return false;
-
-        // 3. Kontrollnumber
-        int checkDigit = getCheckDigit(code);
-
-        return checkDigit == (code.charAt(10) - '0');
+        return getCheckDigit(code) == (code.charAt(10) - '0');
     }
 
     private static int getCheckDigit(String code) {
@@ -50,9 +41,9 @@ public class EstonianPersonalCodeValidator {
         return checkDigit;
     }
 
-    public record BirthDate(int year, int month, int day) {}
+    private record BirthDate(int year, int month, int day) {}
 
-    public static BirthDate parseBirthDate(String code) {
+    private static BirthDate parseBirthDate(String code) {
         int gender = code.charAt(0) - '0';
         int year = Integer.parseInt(code.substring(1, 3));
         int month = Integer.parseInt(code.substring(3, 5));
@@ -65,7 +56,6 @@ public class EstonianPersonalCodeValidator {
             default -> throw new IllegalArgumentException("Invalid gender code: " + gender);
         };
 
-        // LocalDate validates impossible dates like 31.02 automatically.
         LocalDate.of(fullYear, month, day);
 
         return new BirthDate(fullYear, month, day);

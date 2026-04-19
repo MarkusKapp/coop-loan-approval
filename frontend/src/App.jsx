@@ -318,7 +318,7 @@ function App() {
             Loan amount
             <input
               type="number"
-              step="0.01"
+              step="100"
               min="5000"
               value={createPayload.loanAmount}
               onChange={(event) => updatePayloadField('loanAmount', event.target.value)}
