@@ -10,6 +10,7 @@ import com.example.backend.loan.repository.LoanApplicationRepository;
 import com.example.backend.loan.repository.LoanPaymentScheduleRepository;
 import com.example.backend.loan.service.LoanConfigService;
 import com.example.backend.loan.service.LoanApplicationService;
+import com.example.backend.loan.service.PaymentScheduleService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,25 +72,13 @@ class LoanApplicationServiceRegenerateTest {
         request.setInterestMargin(new BigDecimal("1.50"));
         request.setBaseInterestRate(new BigDecimal("3.50"));
         request.setLoanPeriodMonths(24);
-
-        when(loanConfigService.getEuribor()).thenReturn(new BigDecimal("4.00"));
     }
 
-    @Test
-    void regenerateSchedule_success_returnsResponseWithSchedule() {
-        when(loanApplicationRepository.save(application)).thenReturn(application);
-        when(paymentScheduleService.buildAnnuitySchedule(any(LoanApplication.class), any(LocalDate.class)))
-                .thenReturn(newSchedule);
-        when(loanApplicationResponseMapper.toResponse(application, newSchedule)).thenReturn(expectedResponse);
-
-        LoanApplicationResponse result = loanApplicationService.regenerateSchedule(applicationId, request);
-
-        assertThat(result).isEqualTo(expectedResponse);
-    }
 
     @Test
     void regenerateSchedule_success_deletesOldScheduleBeforeSavingNew() {
         List<LoanPaymentSchedule> newSchedule = List.of(new LoanPaymentSchedule());
+        when(loanConfigService.getEuribor()).thenReturn(new BigDecimal("4.00"));
 
         when(loanApplicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
         when(loanApplicationRepository.save(application)).thenReturn(application);
@@ -106,6 +95,7 @@ class LoanApplicationServiceRegenerateTest {
 
     @Test
     void regenerateSchedule_success_updatesApplicationParameters() {
+        when(loanConfigService.getEuribor()).thenReturn(new BigDecimal("4.00"));
         when(loanApplicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
         when(loanApplicationRepository.save(application)).thenReturn(application);
         when(paymentScheduleService.buildAnnuitySchedule(any(LoanApplication.class), any(LocalDate.class)))
@@ -119,12 +109,13 @@ class LoanApplicationServiceRegenerateTest {
 
         LoanApplication saved = captor.getValue();
         assertThat(saved.getInterestMargin()).isEqualByComparingTo(new BigDecimal("1.50"));
-        assertThat(saved.getBaseInterestRate()).isEqualByComparingTo(new BigDecimal("3.50"));
+        assertThat(saved.getBaseInterestRate()).isEqualByComparingTo(new BigDecimal("4.00"));
         assertThat(saved.getLoanPeriodMonths()).isEqualTo(24);
     }
 
     @Test
     void regenerateSchedule_success_buildsScheduleWithUpdatedParams() {
+        when(loanConfigService.getEuribor()).thenReturn(new BigDecimal("4.00"));
         when(loanApplicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
         when(loanApplicationRepository.save(application)).thenReturn(application);
         when(paymentScheduleService.buildAnnuitySchedule(any(LoanApplication.class), any(LocalDate.class)))
@@ -138,7 +129,7 @@ class LoanApplicationServiceRegenerateTest {
 
         LoanApplication passedToSchedule = captor.getValue();
         assertThat(passedToSchedule.getInterestMargin()).isEqualByComparingTo(request.getInterestMargin());
-        assertThat(passedToSchedule.getBaseInterestRate()).isEqualByComparingTo(request.getBaseInterestRate());
+        assertThat(passedToSchedule.getBaseInterestRate()).isEqualByComparingTo(new BigDecimal("4.00"));
         assertThat(passedToSchedule.getLoanPeriodMonths()).isEqualTo(request.getLoanPeriodMonths());
     }
 

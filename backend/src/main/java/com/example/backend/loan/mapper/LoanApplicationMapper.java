@@ -1,6 +1,5 @@
 package com.example.backend.loan.mapper;
 
-import com.example.backend.loan.dto.LoanApplicationResponse;
 import com.example.backend.loan.entity.LoanApplication;
 import com.example.backend.loan.dto.CreateLoanApplicationRequest;
 import org.mapstruct.Mapper;

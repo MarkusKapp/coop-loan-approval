@@ -21,7 +21,7 @@ public class EstonianPersonalCodeValidator {
         try {
             parseBirthDate(code);
             // LocalDate.of validates the BirthDate
-        } catch (RuntimeException ex) {
+        } catch (Exception _) {
             log.warn("Personal code validation failed: invalid encoded birth date or century digit");
             return false;
         }

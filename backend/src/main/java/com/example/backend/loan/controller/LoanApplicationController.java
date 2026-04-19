@@ -40,9 +40,6 @@ public class LoanApplicationController {
 
     @GetMapping
     @Operation(summary = "Get all loan applications")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Applications returned successfully")
-    })
     public List<LoanApplicationResponse> getAll() {
         log.info("Fetching all loan applications");
         List<LoanApplicationResponse> applications = loanApplicationService.getAllApplications();
@@ -52,11 +49,6 @@ public class LoanApplicationController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get loan application by ID with payment schedule")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Application returned successfully"),
-            @ApiResponse(responseCode = "404", description = "Loan application not found",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
     public LoanApplicationResponse getById(@PathVariable UUID id) {
         log.info("Fetching loan application {}", id);
         return loanApplicationService.getApplicationById(id);
@@ -64,9 +56,6 @@ public class LoanApplicationController {
 
     @GetMapping("/in-review")
     @Operation(summary = "Get IN_REVIEW loan applications for manual review")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "In-review applications returned successfully")
-    })
     public List<LoanApplicationResponse> getInReview() {
         log.info("Fetching IN_REVIEW applications");
         List<LoanApplicationResponse> applications = loanApplicationService.getInReviewApplications();
@@ -77,13 +66,6 @@ public class LoanApplicationController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a loan application and run automatic workflow")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Loan application created successfully"),
-            @ApiResponse(responseCode = "400", description = "Validation failed or personal code is invalid",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Customer already has an active application",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
     public LoanApplicationResponse create(@Valid @RequestBody CreateLoanApplicationRequest request) {
         log.info("Received create loan application request");
         LoanApplicationResponse response = loanApplicationService.createApplication(request);
@@ -93,13 +75,6 @@ public class LoanApplicationController {
 
     @PostMapping("/{id}/approve")
     @Operation(summary = "Approve loan application in review")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Loan application approved successfully"),
-            @ApiResponse(responseCode = "404", description = "Loan application not found",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Only IN_REVIEW applications can be approved",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
     public DecisionResponse approve(@PathVariable UUID id) {
         log.info("Received approve request for application {}", id);
         DecisionResponse response = loanApplicationService.approve(id);
@@ -109,15 +84,6 @@ public class LoanApplicationController {
 
     @PostMapping("/{id}/reject")
     @Operation(summary = "Reject loan application in review")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Loan application rejected successfully"),
-            @ApiResponse(responseCode = "400", description = "Validation failed for rejection payload",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Loan application not found",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Only IN_REVIEW applications can be rejected",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
     public DecisionResponse reject(@PathVariable UUID id, @Valid @RequestBody RejectLoanApplicationRequest request) {
         log.info("Received reject request for application {}", id);
         DecisionResponse response = loanApplicationService.reject(id, request);
@@ -127,13 +93,6 @@ public class LoanApplicationController {
 
     @PutMapping("/{id}/regenerate-schedule")
     @Operation(summary = "Regenerate payment schedule for application in review")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Payment schedule regenerated successfully"),
-            @ApiResponse(responseCode = "400", description = "Validation failed for regeneration payload",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-            @ApiResponse(responseCode = "500", description = "Unexpected error during regeneration",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
     public LoanApplicationResponse regenerateSchedule(
             @PathVariable UUID id,
             @Valid @RequestBody RegenerateScheduleRequest request) {

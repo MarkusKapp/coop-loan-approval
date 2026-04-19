@@ -15,7 +15,6 @@ import com.example.backend.loan.mapper.LoanApplicationMapper;
 import com.example.backend.loan.mapper.LoanApplicationResponseMapper;
 import com.example.backend.loan.repository.LoanApplicationRepository;
 import com.example.backend.loan.repository.LoanPaymentScheduleRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -74,12 +73,6 @@ class LoanApplicationServiceTest {
 	@InjectMocks
 	private LoanApplicationService service;
 
-	@BeforeEach
-	void setUp() {
-		when(loanConfigService.getMaxCustomerAge()).thenReturn(70);
-		when(loanConfigService.getEuribor()).thenReturn(BigDecimal.valueOf(4.00));
-	}
-
 	@Test
 	void createApplicationRejectsInvalidPersonalCode() {
 		CreateLoanApplicationRequest request = req("123");
@@ -117,6 +110,7 @@ class LoanApplicationServiceTest {
 
 		when(personalCodeValidator.isValid(code)).thenReturn(true);
 		when(loanApplicationRepository.existsByPersonalCodeAndStatusIn(eq(code), any())).thenReturn(false);
+		stubLoanConfig(BigDecimal.valueOf(4.00));
 		when(personalCodeValidator.extractBirthDate(code)).thenReturn(VALID_BIRTH_DATE);
 		when(loanApplicationMapper.toNewEntity(request, VALID_BIRTH_DATE)).thenReturn(mapped);
 		when(loanApplicationRepository.save(any(LoanApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -141,6 +135,7 @@ class LoanApplicationServiceTest {
 
 		when(personalCodeValidator.isValid(code)).thenReturn(true);
 		when(loanApplicationRepository.existsByPersonalCodeAndStatusIn(eq(code), any())).thenReturn(false);
+		stubLoanConfig(BigDecimal.valueOf(4.00));
 		when(personalCodeValidator.extractBirthDate(code)).thenReturn(TOO_OLD_BIRTH_DATE);
 		when(loanApplicationMapper.toNewEntity(request, TOO_OLD_BIRTH_DATE)).thenReturn(mapped);
 		when(loanApplicationRepository.save(any(LoanApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -162,6 +157,7 @@ class LoanApplicationServiceTest {
 
 		when(personalCodeValidator.isValid(code)).thenReturn(true);
 		when(loanApplicationRepository.existsByPersonalCodeAndStatusIn(eq(code), any())).thenReturn(false);
+		when(loanConfigService.getEuribor()).thenReturn(BigDecimal.valueOf(4.00));
 		when(personalCodeValidator.extractBirthDate(code)).thenReturn(VALID_BIRTH_DATE);
 		when(loanApplicationMapper.toNewEntity(request, VALID_BIRTH_DATE)).thenReturn(mapped);
 		when(loanApplicationRepository.save(any(LoanApplication.class))).thenThrow(new DataIntegrityViolationException("duplicate active"));
@@ -182,6 +178,7 @@ class LoanApplicationServiceTest {
 
 		when(personalCodeValidator.isValid(code)).thenReturn(true);
 		when(loanApplicationRepository.existsByPersonalCodeAndStatusIn(eq(code), any())).thenReturn(false);
+		stubLoanConfig(BigDecimal.valueOf(4.00));
 		when(personalCodeValidator.extractBirthDate(code)).thenReturn(VALID_BIRTH_DATE);
 		when(loanApplicationMapper.toNewEntity(request, VALID_BIRTH_DATE)).thenReturn(mapped);
 		when(loanApplicationRepository.save(any(LoanApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -302,6 +299,7 @@ class LoanApplicationServiceTest {
 
 		when(personalCodeValidator.isValid(code)).thenReturn(true);
 		when(loanApplicationRepository.existsByPersonalCodeAndStatusIn(eq(code), any())).thenReturn(false);
+		stubLoanConfig(BigDecimal.valueOf(4.00));
 		when(personalCodeValidator.extractBirthDate(code)).thenReturn(VALID_BIRTH_DATE);
 		when(loanApplicationMapper.toNewEntity(request, VALID_BIRTH_DATE)).thenReturn(mapped);
 		when(loanApplicationRepository.save(any(LoanApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -313,6 +311,78 @@ class LoanApplicationServiceTest {
 		assertEquals("db write failed", ex.getMessage());
 		verify(loanApplicationRepository, times(1)).save(mapped);
 		verify(loanApplicationResponseMapper, never()).toResponse(any(LoanApplication.class), anyList());
+	}
+
+	@Test
+	void createApplicationUsesChangedEuriborFromConfig() {
+		String code = TestPersonalCodeFactory.personalCode(3, VALID_BIRTH_DATE, 342);
+		CreateLoanApplicationRequest request = req(code);
+		LoanApplication mapped = app(UUID.randomUUID(), code, LoanStatus.STARTED, VALID_BIRTH_DATE, LocalDateTime.now());
+		List<LoanPaymentSchedule> schedule = List.of(schedule(mapped.getId(), 1));
+
+		when(personalCodeValidator.isValid(code)).thenReturn(true);
+		when(loanApplicationRepository.existsByPersonalCodeAndStatusIn(eq(code), any())).thenReturn(false);
+		stubLoanConfig(BigDecimal.valueOf(5.55));
+		when(personalCodeValidator.extractBirthDate(code)).thenReturn(VALID_BIRTH_DATE);
+		when(loanApplicationMapper.toNewEntity(request, VALID_BIRTH_DATE)).thenReturn(mapped);
+		when(loanApplicationRepository.save(any(LoanApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(paymentScheduleService.buildAnnuitySchedule(eq(mapped), any(LocalDate.class))).thenReturn(schedule);
+		when(loanApplicationResponseMapper.toResponse(eq(mapped), eq(schedule)))
+				.thenReturn(response(mapped, LoanStatus.IN_REVIEW, null, 1));
+
+		service.createApplication(request);
+
+		assertEquals(BigDecimal.valueOf(5.55), mapped.getBaseInterestRate());
+		verify(loanConfigService).getEuribor();
+	}
+
+	@Test
+	void createApplicationRejectsWhenMaxAgeIsLowered() {
+		LocalDate birthDate = LocalDate.now().minusYears(31);
+		String code = TestPersonalCodeFactory.personalCode(3, birthDate, 343);
+		CreateLoanApplicationRequest request = req(code);
+		LoanApplication mapped = app(UUID.randomUUID(), code, LoanStatus.STARTED, birthDate, LocalDateTime.now());
+
+		when(personalCodeValidator.isValid(code)).thenReturn(true);
+		when(loanApplicationRepository.existsByPersonalCodeAndStatusIn(eq(code), any())).thenReturn(false);
+		when(loanConfigService.getEuribor()).thenReturn(BigDecimal.valueOf(4.00));
+		when(loanConfigService.getMaxCustomerAge()).thenReturn(30);
+		when(personalCodeValidator.extractBirthDate(code)).thenReturn(birthDate);
+		when(loanApplicationMapper.toNewEntity(request, birthDate)).thenReturn(mapped);
+		when(loanApplicationRepository.save(any(LoanApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(loanApplicationResponseMapper.toResponse(eq(mapped), anyList()))
+				.thenReturn(response(mapped, LoanStatus.REJECTED, "CUSTOMER_TOO_OLD", 0));
+
+		LoanApplicationResponse actual = service.createApplication(request);
+
+		assertEquals(LoanStatus.REJECTED, actual.getStatus());
+		assertEquals("CUSTOMER_TOO_OLD", actual.getRejectionReason());
+		verify(paymentScheduleService, never()).buildAnnuitySchedule(any(LoanApplication.class), any(LocalDate.class));
+	}
+
+	@Test
+	void createApplicationAllowsApplicantAtConfiguredMaxAgeBoundary() {
+		LocalDate birthDate = LocalDate.now().minusYears(30);
+		String code = TestPersonalCodeFactory.personalCode(3, birthDate, 344);
+		CreateLoanApplicationRequest request = req(code);
+		LoanApplication mapped = app(UUID.randomUUID(), code, LoanStatus.STARTED, birthDate, LocalDateTime.now());
+		List<LoanPaymentSchedule> schedule = List.of(schedule(mapped.getId(), 1));
+
+		when(personalCodeValidator.isValid(code)).thenReturn(true);
+		when(loanApplicationRepository.existsByPersonalCodeAndStatusIn(eq(code), any())).thenReturn(false);
+		when(loanConfigService.getEuribor()).thenReturn(BigDecimal.valueOf(4.00));
+		when(loanConfigService.getMaxCustomerAge()).thenReturn(30);
+		when(personalCodeValidator.extractBirthDate(code)).thenReturn(birthDate);
+		when(loanApplicationMapper.toNewEntity(request, birthDate)).thenReturn(mapped);
+		when(loanApplicationRepository.save(any(LoanApplication.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(paymentScheduleService.buildAnnuitySchedule(eq(mapped), any(LocalDate.class))).thenReturn(schedule);
+		when(loanApplicationResponseMapper.toResponse(eq(mapped), eq(schedule)))
+				.thenReturn(response(mapped, LoanStatus.IN_REVIEW, null, 1));
+
+		LoanApplicationResponse actual = service.createApplication(request);
+
+		assertEquals(LoanStatus.IN_REVIEW, actual.getStatus());
+		verify(paymentScheduleService).buildAnnuitySchedule(eq(mapped), any(LocalDate.class));
 	}
 
 	@Test
@@ -375,6 +445,11 @@ class LoanApplicationServiceTest {
 				.baseInterestRate(BigDecimal.valueOf(4.00))
 				.loanAmount(BigDecimal.valueOf(12000))
 				.build();
+	}
+
+	private void stubLoanConfig(BigDecimal euribor) {
+		when(loanConfigService.getEuribor()).thenReturn(euribor);
+		when(loanConfigService.getMaxCustomerAge()).thenReturn(70);
 	}
 
 	private static LoanApplication app(UUID id, String code, LoanStatus status, LocalDate birthDate, LocalDateTime createdAt) {
