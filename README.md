@@ -53,12 +53,10 @@ This starts:
 
 ### URLs After Startup
 
-- **Frontend UI:** `http://localhost:3000`
-- **Backend API:** `http://localhost:8080`
-- **Swagger UI:** `http://localhost:8080/swagger-ui.html`
+- **Frontend UI:** http://localhost:3000
+- **Backend API:** http://localhost:8080
+- **Swagger UI:** http://localhost:8080/swagger-ui.html
 
-> Note: root `docker-compose.yaml` is the primary startup file for this repository.
-> The `backend/docker-compose.yaml` file is a separate backend-focused variant and is not required to run the full stack.
 
 ## Backend API
 
