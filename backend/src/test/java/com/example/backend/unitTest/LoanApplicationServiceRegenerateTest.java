@@ -1,15 +1,15 @@
-package com.example.backend.loan.service;
+package com.example.backend.unitTest;
 
-import com.example.backend.EstonianPersonalCodeValidator;
 import com.example.backend.loan.LoanStatus;
 import com.example.backend.loan.dto.LoanApplicationResponse;
 import com.example.backend.loan.dto.RegenerateScheduleRequest;
 import com.example.backend.loan.entity.LoanApplication;
 import com.example.backend.loan.entity.LoanPaymentSchedule;
-import com.example.backend.loan.mapper.LoanApplicationMapper;
 import com.example.backend.loan.mapper.LoanApplicationResponseMapper;
 import com.example.backend.loan.repository.LoanApplicationRepository;
 import com.example.backend.loan.repository.LoanPaymentScheduleRepository;
+import com.example.backend.loan.service.LoanConfigService;
+import com.example.backend.loan.service.LoanApplicationService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,11 +43,10 @@ class LoanApplicationServiceRegenerateTest {
     @Mock
     private PaymentScheduleService paymentScheduleService;
     @Mock
-    private LoanApplicationMapper loanApplicationMapper;
-    @Mock
     private LoanApplicationResponseMapper loanApplicationResponseMapper;
+
     @Mock
-    private EstonianPersonalCodeValidator personalCodeValidator;
+    private LoanConfigService loanConfigService;
 
     @InjectMocks
     private LoanApplicationService loanApplicationService;
@@ -72,17 +71,12 @@ class LoanApplicationServiceRegenerateTest {
         request.setInterestMargin(new BigDecimal("1.50"));
         request.setBaseInterestRate(new BigDecimal("3.50"));
         request.setLoanPeriodMonths(24);
+
+        when(loanConfigService.getEuribor()).thenReturn(new BigDecimal("4.00"));
     }
 
     @Test
     void regenerateSchedule_success_returnsResponseWithSchedule() {
-        List<LoanPaymentSchedule> newSchedule = List.of(new LoanPaymentSchedule(), new LoanPaymentSchedule());
-        LoanApplicationResponse expectedResponse = LoanApplicationResponse.builder()
-                .id(applicationId)
-                .status(LoanStatus.IN_REVIEW)
-                .build();
-
-        when(loanApplicationRepository.findById(applicationId)).thenReturn(Optional.of(application));
         when(loanApplicationRepository.save(application)).thenReturn(application);
         when(paymentScheduleService.buildAnnuitySchedule(any(LoanApplication.class), any(LocalDate.class)))
                 .thenReturn(newSchedule);

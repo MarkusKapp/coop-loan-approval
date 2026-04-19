@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
-        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
-        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
 
-    <changeSet id="001" author="dev">
-        <createTable tableName="loan_application">
+    <changeSet id="2026-04-17 Loan application table" author="Markus Käpp">
+        <createTable tableName="loan_application"
+                     remarks="Stores loan applications submitted by customers, including personal data, loan terms, and application status">
 
             <column name="id" type="UUID">
                 <constraints primaryKey="true" nullable="false"/>
@@ -23,9 +24,7 @@
                 <constraints nullable="false"/>
             </column>
 
-            <column name="birth_date" type="DATE">
-                <constraints nullable="true"/>
-            </column>
+            <column name="birth_date" type="DATE"/>
 
             <column name="loan_period_months" type="INTEGER">
                 <constraints nullable="false"/>
@@ -47,22 +46,17 @@
                 <constraints nullable="false"/>
             </column>
 
-            <column name="rejection_reason" type="VARCHAR(50)">
-                <constraints nullable="true"/>
-            </column>
+            <column name="rejection_reason" type="VARCHAR(50)"/>
 
             <column name="created_at" type="TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
 
-            <column name="updated_at" type="TIMESTAMP">
-                <constraints nullable="true"/>
-            </column>
-
+            <column name="updated_at" type="TIMESTAMP"/>
         </createTable>
     </changeSet>
 
-    <changeSet id="002" author="dev">
+    <changeSet id="2026-04-17 Loan status constraint" author="Markus Käpp">
         <sql>
             ALTER TABLE loan_application
                 ADD CONSTRAINT ck_loan_application_status
@@ -70,7 +64,7 @@
         </sql>
     </changeSet>
 
-    <changeSet id="003" author="dev">
+    <changeSet id="2026-04-17 Personal code format constraint" author="Markus Käpp">
         <sql>
             ALTER TABLE loan_application
                 ADD CONSTRAINT ck_personal_code_format
@@ -78,7 +72,7 @@
         </sql>
     </changeSet>
 
-    <changeSet id="004" author="dev">
+    <changeSet id="2026-04-17 Active loan unique index" author="Markus Käpp">
         <sql>
             CREATE UNIQUE INDEX ux_active_loan_application
                 ON loan_application(personal_code)
@@ -86,8 +80,9 @@
         </sql>
     </changeSet>
 
-    <changeSet id="005" author="dev">
-        <createTable tableName="loan_payment_schedule">
+    <changeSet id="2026-04-17 Loan payment schedule table" author="Markus Käpp">
+        <createTable tableName="loan_payment_schedule"
+                     remarks="Contains amortization schedule entries for approved loan applications">
 
             <column name="id" type="UUID">
                 <constraints primaryKey="true" nullable="false"/>
@@ -116,11 +111,10 @@
             <column name="total_payment" type="NUMERIC(12,2)">
                 <constraints nullable="false"/>
             </column>
-
         </createTable>
     </changeSet>
 
-    <changeSet id="006" author="dev">
+    <changeSet id="2026-04-17 Payment schedule foreign key" author="Markus Käpp">
         <addForeignKeyConstraint
                 baseTableName="loan_payment_schedule"
                 baseColumnNames="loan_application_id"
@@ -129,7 +123,7 @@
                 constraintName="fk_payment_loan_application"/>
     </changeSet>
 
-    <changeSet id="007" author="dev">
+    <changeSet id="2026-04-19 Loan status migration" author="Markus Käpp">
         <sql>
             UPDATE loan_application
             SET status = 'STARTED'
@@ -140,7 +134,7 @@
         </sql>
         <sql>
             ALTER TABLE loan_application
-                DROP CONSTRAINT IF EXISTS ck_loan_application_status;
+            DROP CONSTRAINT IF EXISTS ck_loan_application_status;
         </sql>
         <sql>
             ALTER TABLE loan_application
@@ -154,7 +148,7 @@
         </sql>
     </changeSet>
 
-    <changeSet id="008" author="dev">
+    <changeSet id="2026-04-19 Loan validation constraints" author="Markus Käpp">
         <sql>
             ALTER TABLE loan_application
                 ADD CONSTRAINT ck_loan_application_period_months
@@ -176,4 +170,37 @@
                     CHECK (loan_amount &gt;= 5000.00);
         </sql>
     </changeSet>
+
+    <changeSet id="2026-04-19 Loan configuration table" author="Markus Käpp">
+        <createTable tableName="loan_config"
+                     remarks="Stores configurable loan-related parameters such as interest rates and age limits">
+
+            <column name="config_key" type="VARCHAR(50)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <column name="config_value" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="description" type="VARCHAR(200)"/>
+
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2026-04-20 Loan configuration seed data" author="Markus Käpp">
+        <insert tableName="loan_config">
+            <column name="config_key" value="euribor_6m"/>
+            <column name="config_value" value="3.856"/>
+            <column name="description" value="6-month Euribor rate (%)"/>
+        </insert>
+
+        <insert tableName="loan_config">
+            <column name="config_key" value="customer_max_age"/>
+            <column name="config_value" value="70"/>
+            <column name="description" value="Maximum customer age in years"/>
+        </insert>
+    </changeSet>
+
 </databaseChangeLog>

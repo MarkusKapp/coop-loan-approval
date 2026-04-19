@@ -52,6 +52,35 @@
   margin: 0;
 }
 
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #313544;
+  border-radius: 8px;
+  background: #11131a;
+}
+
+.config-item label {
+  gap: 6px;
+}
+
+.config-item p,
+.config-note {
+  margin: 0;
+}
+
+.config-item button {
+  align-self: flex-start;
+}
+
 /* ── Form inside a card ─────────────────────────────────────── */
 .card form {
   display: flex;
@@ -197,8 +226,8 @@
 
 .btn-secondary {
   background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
+  border: 1px solid #3f4454;
+  color: #cbd5e1;
   padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
@@ -497,3 +526,10 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+@media (max-width: 760px) {
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

@@ -17,13 +17,13 @@ import com.example.backend.loan.repository.LoanPaymentScheduleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Period;
 import java.util.Collections;
@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 public class LoanApplicationService {
 
     private static final String CUSTOMER_TOO_OLD = "CUSTOMER_TOO_OLD";
+    private final LoanConfigService loanConfigService;
 
     private final LoanApplicationRepository loanApplicationRepository;
     private final LoanPaymentScheduleRepository loanPaymentScheduleRepository;
@@ -45,9 +46,8 @@ public class LoanApplicationService {
     private final EstonianPersonalCodeValidator personalCodeValidator;
     private final LoanApplicationMapper loanApplicationMapper;
     private final LoanApplicationResponseMapper loanApplicationResponseMapper;
-    @Value("${loan.customer.max-age:70}")
-    private int maxCustomerAge;
 
+    // Loads all applications ordered by newest first and includes their schedules.
     @Transactional(readOnly = true)
     public List<LoanApplicationResponse> getAllApplications() {
         log.debug("Loading all loan applications with schedules");
@@ -56,6 +56,7 @@ public class LoanApplicationService {
         return mapApplicationsWithSchedules(applications);
     }
 
+    // Loads a single application and maps it together with its ordered payment schedule.
     @Transactional(readOnly = true)
     public LoanApplicationResponse getApplicationById(UUID id) {
         LoanApplication application = findById(id);
@@ -66,6 +67,7 @@ public class LoanApplicationService {
         return loanApplicationResponseMapper.toResponse(application, schedule);
     }
 
+    // Loads applications currently in review and includes their schedules.
     @Transactional(readOnly = true)
     public List<LoanApplicationResponse> getInReviewApplications() {
         log.debug("Loading IN_REVIEW applications with schedules");
@@ -75,7 +77,7 @@ public class LoanApplicationService {
     }
 
 
-    // Helper method for not getting N + 1 problem, instead its always 2 queries.
+    // Maps applications with schedules using a batched lookup to avoid N+1 queries.
     private List<LoanApplicationResponse> mapApplicationsWithSchedules(List<LoanApplication> applications) {
         if (applications.isEmpty()) {
             log.debug("No applications found, skipping schedule lookup");
@@ -100,6 +102,7 @@ public class LoanApplicationService {
                 .toList();
     }
 
+    // Creates a new application, validates constraints, and generates the initial schedule.
     @Transactional
     public LoanApplicationResponse createApplication(CreateLoanApplicationRequest request) {
         log.debug("Starting loan application creation workflow");
@@ -119,6 +122,8 @@ public class LoanApplicationService {
         LocalDate currentDate = LocalDate.now();
         LocalDate birthDate = personalCodeValidator.extractBirthDate(request.getPersonalCode());
         LoanApplication application = loanApplicationMapper.toNewEntity(request, birthDate);
+        BigDecimal euribor = loanConfigService.getEuribor();
+        application.setBaseInterestRate(euribor);
 
         try {
             application = loanApplicationRepository.save(application);
@@ -127,6 +132,7 @@ public class LoanApplicationService {
             log.warn("Create request failed due to active application uniqueness conflict", ex);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Customer already has an active application", ex);
         }
+        int maxCustomerAge = loanConfigService.getMaxCustomerAge();
 
         int age = Period.between(birthDate, currentDate).getYears();
         log.debug("Calculated applicant age={} for application {}", age, application.getId());
@@ -169,16 +175,17 @@ public class LoanApplicationService {
 
         log.info("Regenerating payment schedule for application {}", id);
 
-        // Kustuta vana graafik
+        // Remove the previous schedule before generating a new one.
         loanPaymentScheduleRepository.deleteByLoanApplicationId(id);
 
-        // Uuenda parameetrid
+        // Update application terms used for schedule generation.
+        BigDecimal euribor = loanConfigService.getEuribor();
         application.setInterestMargin(request.getInterestMargin());
-        application.setBaseInterestRate(request.getBaseInterestRate());
+        application.setBaseInterestRate(euribor);
         application.setLoanPeriodMonths(request.getLoanPeriodMonths());
         loanApplicationRepository.save(application);
 
-        // Genereeri uus graafik
+        // Generate and persist the refreshed schedule.
         List<LoanPaymentSchedule> schedule = paymentScheduleService.buildAnnuitySchedule(
                 application, LocalDate.now()
         );
@@ -189,6 +196,7 @@ public class LoanApplicationService {
         return loanApplicationResponseMapper.toResponse(application, schedule);
     }
 
+    // Approves an application when it is currently in review.
     @Transactional
     public DecisionResponse approve(UUID id) {
         LoanApplication application = findById(id);
@@ -203,6 +211,7 @@ public class LoanApplicationService {
         return new DecisionResponse(saved.getId(), saved.getStatus(), saved.getRejectionReason());
     }
 
+    // Rejects an application in review and stores the provided reason.
     @Transactional
     public DecisionResponse reject(UUID id, RejectLoanApplicationRequest request) {
         LoanApplication application = findById(id);
@@ -220,6 +229,7 @@ public class LoanApplicationService {
         return new DecisionResponse(saved.getId(), saved.getStatus(), saved.getRejectionReason());
     }
 
+    // Finds an application by id or raises a 404 response status exception.
     private LoanApplication findById(UUID id) {
         return loanApplicationRepository.findById(id)
                 .orElseThrow(() -> {

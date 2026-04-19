@@ -2,6 +2,7 @@ package com.example.backend.unitTest;
 
 import com.example.backend.loan.service.LoanApplicationService;
 import com.example.backend.loan.service.PaymentScheduleService;
+import com.example.backend.loan.service.LoanConfigService;
 import com.example.backend.personalCodeTest.TestPersonalCodeFactory;
 import com.example.backend.loan.LoanStatus;
 import com.example.backend.loan.dto.CreateLoanApplicationRequest;
@@ -21,7 +22,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -57,6 +57,9 @@ class LoanApplicationServiceTest {
 	private LoanPaymentScheduleRepository loanPaymentScheduleRepository;
 
 	@Mock
+	private LoanConfigService loanConfigService;
+
+	@Mock
 	private PaymentScheduleService paymentScheduleService;
 
 	@Mock
@@ -73,7 +76,8 @@ class LoanApplicationServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		ReflectionTestUtils.setField(service, "maxCustomerAge", 70);
+		when(loanConfigService.getMaxCustomerAge()).thenReturn(70);
+		when(loanConfigService.getEuribor()).thenReturn(BigDecimal.valueOf(4.00));
 	}
 
 	@Test
@@ -343,7 +347,7 @@ class LoanApplicationServiceTest {
 
 		assertEquals(2, all.size());
 		assertEquals(2, all.get(0).getPaymentSchedule().size());
-		assertEquals(1, all.get(1).getPaymentSchedule().size());
+		assertEquals(1, all.stream().skip(1).findFirst().orElseThrow().getPaymentSchedule().size());
 		assertEquals(1, inReview.size());
 		assertEquals(first.getId(), inReview.get(0).getId());
 	}
@@ -408,7 +412,7 @@ class LoanApplicationServiceTest {
 				.status(status)
 				.rejectionReason(rejectionReason)
 				.paymentSchedule(java.util.stream.IntStream.range(0, items)
-						.mapToObj(i -> new PaymentScheduleItemResponse())
+						.mapToObj(ignored -> new PaymentScheduleItemResponse())
 						.toList())
 				.build();
 	}

@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
-const DEFAULT_CREATE_PAYLOAD = { firstName: 'Mark', lastName: 'Cooper', personalCode: '60001010007', loanPeriodMonths: 36, interestMargin: 2.1, baseInterestRate: 4.0, loanAmount: 12000 }
+const DEFAULT_CREATE_PAYLOAD = { firstName: 'Mark', lastName: 'Cooper', personalCode: '60001010007', loanPeriodMonths: 36, interestMargin: 2.1, loanAmount: 12000 }
+const DEFAULT_LOAN_CONFIG = { euribor: 3.856, maxAge: 70 }
 const STATUS_LABELS = {
   IN_REVIEW: { label: 'In Review', className: 'pill pill--review' },
   APPROVED: { label: 'Approved', className: 'pill pill--approved' },
@@ -20,6 +21,7 @@ const apiRequest = async (path, options = {}) => {
 
 
 const formatEuro = (v) => `€${Number(v ?? 0).toFixed(2)}`
+const formatPercent = (v) => `${Number(v ?? 0).toFixed(3)}%`
 const StatusPill = ({ status }) => {
   const { label, className } = STATUS_LABELS[status] ?? { label: status, className: 'pill pill--pending' }
   return <span className={className}>{label}</span>
@@ -104,33 +106,123 @@ const SummaryCard = ({ title, application: app, actions, footer }) => {
 
 export default function App() {
   const [createPayload, setPayload] = useState(DEFAULT_CREATE_PAYLOAD)
-    const [results, setResults] = useState({ create: null, all: null, review: null, decision: null, regenerate: null, lookup: null })
+  const [config, setConfig] = useState(DEFAULT_LOAN_CONFIG)
+  const [configInputs, setConfigInputs] = useState({ euribor: String(DEFAULT_LOAN_CONFIG.euribor), maxAge: String(DEFAULT_LOAN_CONFIG.maxAge) })
+  const [configNotice, setConfigNotice] = useState('Loading loan configuration from the database...')
+  const [configLoading, setConfigLoading] = useState(false)
+  const [configSaving, setConfigSaving] = useState(null)
+  const [results, setResults] = useState({ create: null, all: null, review: null, decision: null, regenerate: null, lookup: null, config: null })
   const [loading, setLoading] = useState(false)
 
   const call = async (path, key, opt = {}) => {
     setLoading(true)
-    const res = await apiRequest(path, opt)
-    setResults(prev => ({ ...prev, [key]: res }))
-    setLoading(false)
-    return res
+    try {
+      const res = await apiRequest(path, opt)
+      setResults(prev => ({ ...prev, [key]: res }))
+      return res
+    } finally {
+      setLoading(false)
+    }
   }
 
-    const handleLookup = (id) =>
-        call(`/api/loan-applications/${id}`, 'lookup')
+  const loadLoanConfig = async () => {
+    setConfigLoading(true)
+    try {
+      const res = await apiRequest('/api/loan-config')
 
-    const handleRegenerateSchedule = (id, params) =>
-        call(`/api/loan-applications/${id}/regenerate-schedule`, 'regenerate', {
-            method: 'PUT',
-            body: JSON.stringify(params),
-        }).then(refresh)
+      if (res.ok && Array.isArray(res.body)) {
+        const values = Object.fromEntries(res.body.map(item => [item.key, item.value]))
+        const euribor = Number(values.euribor_6m ?? DEFAULT_LOAN_CONFIG.euribor)
+        const maxAge = Number(values.customer_max_age ?? DEFAULT_LOAN_CONFIG.maxAge)
+        setConfig({
+          euribor: Number.isFinite(euribor) ? euribor : DEFAULT_LOAN_CONFIG.euribor,
+          maxAge: Number.isFinite(maxAge) ? maxAge : DEFAULT_LOAN_CONFIG.maxAge,
+        })
+        setConfigInputs({
+          euribor: String(values.euribor_6m ?? DEFAULT_LOAN_CONFIG.euribor),
+          maxAge: String(values.customer_max_age ?? DEFAULT_LOAN_CONFIG.maxAge),
+        })
+        setConfigNotice('Loan configuration loaded from the database.')
+      } else {
+        setConfigNotice('Failed to load loan configuration. Using default fallback values.')
+      }
+
+      return res
+    } catch {
+      setConfigNotice('Failed to load loan configuration. Using default fallback values.')
+      return { ok: false, status: 500, statusText: 'Network Error', body: null }
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadLoanConfig()
+  }, [])
+
+  const handleLookup = (id) =>
+    call(`/api/loan-applications/${id}`, 'lookup')
+
+  const handleRegenerateSchedule = (id, params) =>
+    call(`/api/loan-applications/${id}/regenerate-schedule`, 'regenerate', {
+      method: 'PUT',
+      body: JSON.stringify(params),
+    }).then(refresh)
 
   const refresh = () => Promise.all([call('/api/loan-applications', 'all'), call('/api/loan-applications/in-review', 'review')])
+
+  const updateConfigValue = async (endpoint, rawValue, key, label) => {
+    const value = String(rawValue).trim() === '' ? Number.NaN : Number(rawValue)
+    if (!Number.isFinite(value)) {
+      setConfigNotice(`${label} must be a valid number.`)
+      return { ok: false, status: 400, statusText: 'Bad Request', body: { message: `${label} must be a valid number.` } }
+    }
+    if (key === 'euribor' && value < 0) {
+      setConfigNotice('Euribor must be zero or greater.')
+      return { ok: false, status: 400, statusText: 'Bad Request', body: { message: 'Euribor must be zero or greater.' } }
+    }
+    if (key === 'maxAge' && (!Number.isInteger(value) || value < 18 || value > 120)) {
+      setConfigNotice('Maximum age must be an integer between 18 and 120.')
+      return { ok: false, status: 400, statusText: 'Bad Request', body: { message: 'Maximum age must be an integer between 18 and 120.' } }
+    }
+
+    setConfigSaving(key)
+    try {
+      const res = await apiRequest(endpoint, {
+        method: 'PUT',
+        body: JSON.stringify({ value }),
+      })
+      setResults(prev => ({ ...prev, config: res }))
+
+      if (res.ok && res.body) {
+        const nextValue = res.body.value
+        setConfig(prev => ({
+          ...prev,
+          [key]: Number(nextValue),
+        }))
+        setConfigInputs(prev => ({
+          ...prev,
+          [key]: String(nextValue),
+        }))
+        setConfigNotice(`${label} updated successfully.`)
+      } else {
+        setConfigNotice(`Failed to update ${label.toLowerCase()}.`)
+      }
+
+      return res
+    } catch {
+      setConfigNotice(`Failed to update ${label.toLowerCase()}.`)
+      return { ok: false, status: 500, statusText: 'Network Error', body: null }
+    } finally {
+      setConfigSaving(null)
+    }
+  }
 
   const handleCreate = async (e) => {
     e.preventDefault()
     const res = await call('/api/loan-applications', 'create', { method: 'POST', body: JSON.stringify({
         ...createPayload, loanPeriodMonths: +createPayload.loanPeriodMonths, interestMargin: +createPayload.interestMargin,
-        baseInterestRate: +createPayload.baseInterestRate, loanAmount: +createPayload.loanAmount
+        baseInterestRate: config.euribor, loanAmount: +createPayload.loanAmount
       })})
     if (res.ok) refresh()
   }
@@ -144,14 +236,74 @@ export default function App() {
         <header><h1>Loan calculator</h1></header>
 
         <section className="card">
+          <h2>Loan configuration</h2>
+          <p className="muted">Euribor and maximum customer age are stored in the database and used by the backend.</p>
+          <button
+              type="button"
+              className="btn-sm"
+              disabled={configLoading}
+              onClick={loadLoanConfig}
+          >
+            {configLoading ? 'Loading...' : 'Get current values'}
+          </button>
+          <div className="config-grid">
+            <div className="config-item">
+              <label>6M Euribor (%)
+                <input
+                    type="number"
+                    step="0.001"
+                    value={configInputs.euribor}
+                    onChange={e => setConfigInputs({ ...configInputs, euribor: e.target.value })}
+                />
+              </label>
+              <p className="muted">Used automatically for new applications and schedule regeneration.</p>
+              <button
+                  type="button"
+                  className="btn-sm"
+                  disabled={loading || configLoading || configSaving === 'euribor'}
+                  onClick={() => updateConfigValue('/api/loan-config/euribor', configInputs.euribor, 'euribor', 'Euribor')}
+              >
+                {configSaving === 'euribor' ? 'Saving...' : 'Save Euribor'}
+              </button>
+            </div>
+
+            <div className="config-item">
+              <label>Maximum customer age
+                <input
+                    type="number"
+                    step="1"
+                    value={configInputs.maxAge}
+                    onChange={e => setConfigInputs({ ...configInputs, maxAge: e.target.value })}
+                />
+              </label>
+              <p className="muted">Used when auto-rejecting applicants older than the configured threshold.</p>
+              <button
+                  type="button"
+                  className="btn-sm"
+                  disabled={loading || configLoading || configSaving === 'maxAge'}
+                  onClick={() => updateConfigValue('/api/loan-config/max-age', configInputs.maxAge, 'maxAge', 'Maximum age')}
+              >
+                {configSaving === 'maxAge' ? 'Saving...' : 'Save max age'}
+              </button>
+            </div>
+          </div>
+          <p className="config-note muted">
+            Current effective values: Euribor {formatPercent(config.euribor)} · Max age {config.maxAge}
+          </p>
+          <p className="config-note muted">{configNotice}</p>
+          {results.config && <ResponseCard title="Configuration update response" result={results.config} />}
+        </section>
+
+        <section className="card">
           <h2>Create Loan Application</h2>
           <form onSubmit={handleCreate}>
             {[ ['First name', 'firstName'], ['Last name', 'lastName'], ['Personal code (11 digits)', 'personalCode'],
               ['Loan period (months)', 'loanPeriodMonths', 'number'], ['Interest margin (%)', 'interestMargin', 'number', '0.05'],
-              ['Base interest rate (%)', 'baseInterestRate', 'number', '0.05'], ['Loan amount (€)', 'loanAmount', 'number', '100']
+              ['Loan amount (€)', 'loanAmount', 'number', '100']
             ].map(([label, key, type, step]) => (
                 <label key={key}>{label}<input type={type} step={step} value={createPayload[key]} onChange={e => setPayload({...createPayload, [key]: e.target.value})} /></label>
             ))}
+            <p className="muted">Base interest rate is loaded automatically from the database: <strong>{formatPercent(config.euribor)}</strong>.</p>
             <button disabled={loading} type="submit">{loading ? 'Sending...' : 'Submit'}</button>
           </form>
           <ResultView result={results.create} title="Create response">
@@ -199,6 +351,7 @@ export default function App() {
                     <ReviewActions
                         app={app}
                         loading={loading}
+                        euribor={config.euribor}
                         onApprove={() => handleDecision(app.id, 'approve')}
                         onReject={r => handleDecision(app.id, 'reject', r)}
                         onRegenerateSchedule={handleRegenerateSchedule}
@@ -224,7 +377,7 @@ export default function App() {
   )
 }
 
-function ReviewActions({ app, loading, onApprove, onReject, onRegenerateSchedule }) {
+function ReviewActions({ app, loading, euribor, onApprove, onReject, onRegenerateSchedule }) {
     const [reason, setReason] = useState('')
     const [editing, setEditing] = useState(false)
 
@@ -232,6 +385,7 @@ function ReviewActions({ app, loading, onApprove, onReject, onRegenerateSchedule
         <RegenerateForm
             app={app}
             loading={loading}
+            euribor={euribor}
             onSave={async (id, params) => {
                 await onRegenerateSchedule(id, params)
                 setEditing(false)
@@ -252,20 +406,18 @@ function ReviewActions({ app, loading, onApprove, onReject, onRegenerateSchedule
     )
 }
 
-function RegenerateForm({ app, loading, onSave, onCancel }) {
+function RegenerateForm({ app, loading, euribor, onSave, onCancel }) {
     const [params, setParams] = useState({
         interestMargin: app.interestMargin,
-        baseInterestRate: app.baseInterestRate,
         loanPeriodMonths: app.loanPeriodMonths,
     })
 
-    const handleSave = () => onSave(app.id, params)
+    const handleSave = () => onSave(app.id, { ...params, baseInterestRate: euribor })
 
     return (
         <div className="regenerate-form">
             {[
                 ['Interest margin (%)', 'interestMargin', '0.05'],
-                ['Base interest rate (%)', 'baseInterestRate', '0.05'],
                 ['Loan period (months)', 'loanPeriodMonths', '1'],
             ].map(([label, key, step]) => (
                 <label key={key}>{label}
@@ -277,6 +429,7 @@ function RegenerateForm({ app, loading, onSave, onCancel }) {
                     />
                 </label>
             ))}
+            <p className="muted">Base interest rate is taken from the database configuration and cannot be edited here.</p>
             <div className="regenerate-actions">
                 <button disabled={loading} onClick={handleSave} className="btn-approve">
                     {loading ? 'Saving...' : 'Save & regenerate'}

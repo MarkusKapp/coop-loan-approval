@@ -70,6 +70,12 @@ Main endpoints:
 - `POST /api/loan-applications/{id}/reject` - reject an application with reason
 - `PUT /api/loan-applications/{id}/regenerate-schedule` - regenerate schedule (only in `IN_REVIEW` status)
 
+Configuration endpoints (DB-managed dynamic parameters):
+
+- `GET /api/loan-config` - get current configuration values
+- `PUT /api/loan-config/euribor` - update 6M Euribor value in DB
+- `PUT /api/loan-config/max-age` - update maximum customer age in DB
+
 ## Implemented Business Rules
 
 ### Loan Application Submission
@@ -135,6 +141,12 @@ Database data validation and integrity rules:
 - Read operations use transactional read boundaries with `@Transactional(readOnly = true)`.
 - Backend and database validation are the source of truth for business-rule enforcement.
 
+## Dynamic Parameters (DB-Managed)
+
+- `euribor_6m` and `customer_max_age` are managed in `loan_config` table.
+- Loan creation and schedule regeneration use Euribor value from DB.
+- Age validation uses maximum age value from DB.
+
 ## Configuration
 
 Application configuration is in `backend/src/main/resources/application.properties`.
@@ -157,5 +169,6 @@ The following optional tasks are implemented in this solution:
 - **Error handling** - global `@RestControllerAdvice` for validation, business, and technical errors.
 - **Testing** - Mockito-based unit tests for business logic.
 - **Schedule regeneration** - schedule can be updated and regenerated in `IN_REVIEW` status.
-- **User interface (UI)** - simple React/Vite frontend included in Docker Compose.
+- **User interface (UI)** - simple React/Vite frontend included in Docker Compose, with configuration controls for DB-managed Euribor and maximum age.
+- `euribor_6m` and `customer_max_age` are managed in `loan_config` table.
 
