@@ -3,6 +3,7 @@ package com.example.backend.loan.controller;
 import com.example.backend.loan.dto.CreateLoanApplicationRequest;
 import com.example.backend.loan.dto.DecisionResponse;
 import com.example.backend.loan.dto.LoanApplicationResponse;
+import com.example.backend.loan.dto.RegenerateScheduleRequest;
 import com.example.backend.loan.dto.RejectLoanApplicationRequest;
 import com.example.backend.loan.service.LoanApplicationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -72,6 +74,17 @@ public class LoanApplicationController {
         log.info("Received reject request for application {}", id);
         DecisionResponse response = loanApplicationService.reject(id, request);
         log.info("Application {} rejected with reason '{}'", id, response.getRejectionReason());
+        return response;
+    }
+
+    @PutMapping("/{id}/regenerate-schedule")
+    @Operation(summary = "Regenerate payment schedule for application in review")
+    public LoanApplicationResponse regenerateSchedule(
+            @PathVariable UUID id,
+            @Valid @RequestBody RegenerateScheduleRequest request) {
+        log.info("Received regenerate schedule request for application {}", id);
+        LoanApplicationResponse response = loanApplicationService.regenerateSchedule(id, request);
+        log.info("Schedule regenerated for application {} with status {}", id, response.getStatus());
         return response;
     }
 }

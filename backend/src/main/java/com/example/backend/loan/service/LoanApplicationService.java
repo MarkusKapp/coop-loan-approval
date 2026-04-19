@@ -6,6 +6,7 @@ import com.example.backend.loan.LoanStatusConstants;
 import com.example.backend.loan.dto.CreateLoanApplicationRequest;
 import com.example.backend.loan.dto.DecisionResponse;
 import com.example.backend.loan.dto.LoanApplicationResponse;
+import com.example.backend.loan.dto.RegenerateScheduleRequest;
 import com.example.backend.loan.dto.RejectLoanApplicationRequest;
 import com.example.backend.loan.entity.LoanApplication;
 import com.example.backend.loan.entity.LoanPaymentSchedule;
@@ -13,6 +14,7 @@ import com.example.backend.loan.mapper.LoanApplicationMapper;
 import com.example.backend.loan.mapper.LoanApplicationResponseMapper;
 import com.example.backend.loan.repository.LoanApplicationRepository;
 import com.example.backend.loan.repository.LoanPaymentScheduleRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -141,6 +143,40 @@ public class LoanApplicationService {
         LoanApplication inReview = loanApplicationRepository.save(application);
         log.info("Application {} moved to status {}", inReview.getId(), inReview.getStatus());
         return loanApplicationResponseMapper.toResponse(inReview, schedule);
+    }
+
+    @Transactional
+    public LoanApplicationResponse regenerateSchedule(UUID id, RegenerateScheduleRequest request) {
+        LoanApplication application = loanApplicationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Loan application not found: " + id));
+
+        if (application.getStatus() != LoanStatus.IN_REVIEW) {
+            throw new IllegalStateException(
+                    "Schedule regeneration is only allowed for applications in IN_REVIEW status, " +
+                            "but current status is: " + application.getStatus()
+            );
+        }
+
+        log.info("Regenerating payment schedule for application {}", id);
+
+        // Kustuta vana graafik
+        loanPaymentScheduleRepository.deleteByLoanApplicationId(id);
+
+        // Uuenda parameetrid
+        application.setInterestMargin(request.getInterestMargin());
+        application.setBaseInterestRate(request.getBaseInterestRate());
+        application.setLoanPeriodMonths(request.getLoanPeriodMonths());
+        loanApplicationRepository.save(application);
+
+        // Genereeri uus graafik
+        List<LoanPaymentSchedule> schedule = paymentScheduleService.buildAnnuitySchedule(
+                application, LocalDate.now()
+        );
+        loanPaymentScheduleRepository.saveAll(schedule);
+
+        log.info("Schedule regenerated with {} entries for application {}", schedule.size(), id);
+
+        return loanApplicationResponseMapper.toResponse(application, schedule);
     }
 
     @Transactional

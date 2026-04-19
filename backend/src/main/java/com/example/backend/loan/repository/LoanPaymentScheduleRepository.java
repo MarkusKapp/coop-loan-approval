@@ -15,6 +15,8 @@ public interface LoanPaymentScheduleRepository extends JpaRepository<LoanPayment
     List<LoanPaymentSchedule> findByLoanApplicationIdInOrderByLoanApplicationIdAscPaymentNumberAsc(
             Collection<UUID> loanApplicationIds
     );
+    void deleteByLoanApplicationId(UUID loanApplicationId);
+
 }
 
 
