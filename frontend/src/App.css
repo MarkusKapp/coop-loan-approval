@@ -195,6 +195,28 @@
   color: #f8fafc;
 }
 
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.regenerate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.regenerate-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .inline-action-group input {
   min-width: 180px;
 }

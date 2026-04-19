@@ -40,6 +40,13 @@ public class LoanApplicationController {
         return applications;
     }
 
+    @GetMapping("/{id}")
+    @Operation(summary = "Get loan application by ID with payment schedule")
+    public LoanApplicationResponse getById(@PathVariable UUID id) {
+        log.info("Fetching loan application {}", id);
+        return loanApplicationService.getApplicationById(id);
+    }
+
     @GetMapping("/in-review")
     @Operation(summary = "Get IN_REVIEW loan applications for manual review")
     public List<LoanApplicationResponse> getInReview() {

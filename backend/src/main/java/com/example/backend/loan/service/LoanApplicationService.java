@@ -57,6 +57,16 @@ public class LoanApplicationService {
     }
 
     @Transactional(readOnly = true)
+    public LoanApplicationResponse getApplicationById(UUID id) {
+        LoanApplication application = findById(id);
+
+        List<LoanPaymentSchedule> schedule = loanPaymentScheduleRepository
+                .findByLoanApplicationIdOrderByPaymentNumberAsc(id);
+
+        return loanApplicationResponseMapper.toResponse(application, schedule);
+    }
+
+    @Transactional(readOnly = true)
     public List<LoanApplicationResponse> getInReviewApplications() {
         log.debug("Loading IN_REVIEW applications with schedules");
         List<LoanApplication> applications = loanApplicationRepository.findByStatusOrderByCreatedAtDesc(LoanStatus.IN_REVIEW);
