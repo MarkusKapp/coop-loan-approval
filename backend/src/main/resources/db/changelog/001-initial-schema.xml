@@ -153,4 +153,27 @@
                 WHERE status IN ('STARTED','IN_REVIEW');
         </sql>
     </changeSet>
+
+    <changeSet id="008" author="dev">
+        <sql>
+            ALTER TABLE loan_application
+                ADD CONSTRAINT ck_loan_application_period_months
+                    CHECK (loan_period_months BETWEEN 6 AND 360);
+        </sql>
+        <sql>
+            ALTER TABLE loan_application
+                ADD CONSTRAINT ck_loan_application_interest_margin
+                    CHECK (interest_margin &gt;= 0);
+        </sql>
+        <sql>
+            ALTER TABLE loan_application
+                ADD CONSTRAINT ck_loan_application_base_interest_rate
+                    CHECK (base_interest_rate &gt;= 0);
+        </sql>
+        <sql>
+            ALTER TABLE loan_application
+                ADD CONSTRAINT ck_loan_application_loan_amount
+                    CHECK (loan_amount &gt;= 5000.00);
+        </sql>
+    </changeSet>
 </databaseChangeLog>

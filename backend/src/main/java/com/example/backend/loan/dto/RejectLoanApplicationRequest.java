@@ -1,7 +1,7 @@
 package com.example.backend.loan.dto;
 
-import com.example.backend.loan.RejectionReason;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,8 +13,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class RejectLoanApplicationRequest {
 
-	@NotNull
-	private RejectionReason reason;
+	@NotBlank
+	@Size(max = 50)
+	private String reason;
 }
 
 

@@ -1,7 +1,6 @@
 package com.example.backend.loan.dto;
 
 import com.example.backend.loan.LoanStatus;
-import com.example.backend.loan.RejectionReason;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,7 +26,7 @@ public class LoanApplicationResponse {
     private BigDecimal baseInterestRate;
     private BigDecimal loanAmount;
     private LoanStatus status;
-    private RejectionReason rejectionReason;
+    private String rejectionReason;
     private LocalDate birthDate;
     private List<PaymentScheduleItemResponse> paymentSchedule;
 }
