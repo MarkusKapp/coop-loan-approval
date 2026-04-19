@@ -4,6 +4,7 @@ import com.example.backend.loan.entity.LoanApplication;
 import com.example.backend.loan.entity.LoanPaymentSchedule;
 import com.example.backend.loan.mapper.LoanPaymentScheduleMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -15,6 +16,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PaymentScheduleService {
 
     private static final int MONEY_SCALE = 2;
@@ -39,6 +41,15 @@ public class PaymentScheduleService {
             int periodMonths,
             LocalDate firstPaymentDate
     ) {
+        log.debug(
+                "Building annuity schedule for application {} (amount={}, margin={}, baseRate={}, months={}, firstPaymentDate={})",
+                loanApplicationId,
+                loanAmount,
+                interestMargin,
+                baseInterestRate,
+                periodMonths,
+                firstPaymentDate
+        );
         BigDecimal monthlyRate = interestMargin
                 .add(baseInterestRate)
                 .divide(BigDecimal.valueOf(1200), 16, RoundingMode.HALF_UP);
@@ -75,11 +86,15 @@ public class PaymentScheduleService {
             result.add(item);
         }
 
+        log.info("Generated {} payment schedule entries for application {}", result.size(), loanApplicationId);
+        log.debug("Schedule generation finished with remaining balance {}", remaining);
+
         return result;
     }
 
     private BigDecimal calculateMonthlyPayment(BigDecimal principal, BigDecimal monthlyRate, int months) {
         if (monthlyRate.compareTo(BigDecimal.ZERO) == 0) {
+            log.debug("Monthly rate is zero, using simple division for payment calculation");
             return principal.divide(BigDecimal.valueOf(months), MONEY_SCALE, RoundingMode.HALF_UP);
         }
 
@@ -87,6 +102,7 @@ public class PaymentScheduleService {
         double r = monthlyRate.doubleValue();
 
         double payment = p * r / (1 - Math.pow(1 + r, -months));
+        log.debug("Calculated monthly payment for principal {} over {} months", principal, months);
         return BigDecimal.valueOf(payment).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
     }
 }

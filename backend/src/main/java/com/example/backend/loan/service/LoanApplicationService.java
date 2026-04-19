@@ -3,7 +3,6 @@ package com.example.backend.loan.service;
 import com.example.backend.EstonianPersonalCodeValidator;
 import com.example.backend.loan.LoanStatus;
 import com.example.backend.loan.LoanStatusConstants;
-import com.example.backend.loan.RejectionReason;
 import com.example.backend.loan.dto.CreateLoanApplicationRequest;
 import com.example.backend.loan.dto.DecisionResponse;
 import com.example.backend.loan.dto.LoanApplicationResponse;
@@ -15,6 +14,7 @@ import com.example.backend.loan.mapper.LoanApplicationResponseMapper;
 import com.example.backend.loan.repository.LoanApplicationRepository;
 import com.example.backend.loan.repository.LoanPaymentScheduleRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -32,7 +32,10 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class LoanApplicationService {
+
+    private static final String CUSTOMER_TOO_OLD = "CUSTOMER_TOO_OLD";
 
     private final LoanApplicationRepository loanApplicationRepository;
     private final LoanPaymentScheduleRepository loanPaymentScheduleRepository;
@@ -45,13 +48,17 @@ public class LoanApplicationService {
 
     @Transactional(readOnly = true)
     public List<LoanApplicationResponse> getAllApplications() {
+        log.debug("Loading all loan applications with schedules");
         List<LoanApplication> applications = loanApplicationRepository.findAllByOrderByCreatedAtDesc();
+        log.debug("Loaded {} loan applications from database", applications.size());
         return mapApplicationsWithSchedules(applications);
     }
 
     @Transactional(readOnly = true)
     public List<LoanApplicationResponse> getInReviewApplications() {
+        log.debug("Loading IN_REVIEW applications with schedules");
         List<LoanApplication> applications = loanApplicationRepository.findByStatusOrderByCreatedAtDesc(LoanStatus.IN_REVIEW);
+        log.debug("Loaded {} IN_REVIEW applications from database", applications.size());
         return mapApplicationsWithSchedules(applications);
     }
 
@@ -59,6 +66,7 @@ public class LoanApplicationService {
     // Helper method for not getting N + 1 problem, instead its always 2 queries.
     private List<LoanApplicationResponse> mapApplicationsWithSchedules(List<LoanApplication> applications) {
         if (applications.isEmpty()) {
+            log.debug("No applications found, skipping schedule lookup");
             return List.of();
         }
 
@@ -71,6 +79,7 @@ public class LoanApplicationService {
                 .stream()
                 .collect(Collectors.groupingBy(LoanPaymentSchedule::getLoanApplicationId));
 
+
         return applications.stream()
                 .map(application -> loanApplicationResponseMapper.toResponse(
                         application,
@@ -81,7 +90,9 @@ public class LoanApplicationService {
 
     @Transactional
     public LoanApplicationResponse createApplication(CreateLoanApplicationRequest request) {
+        log.debug("Starting loan application creation workflow");
         if (!personalCodeValidator.isValid(request.getPersonalCode())) {
+            log.warn("Rejected create request: invalid personal code format/checksum");
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Estonian personal code");
         }
 
@@ -89,6 +100,7 @@ public class LoanApplicationService {
                 request.getPersonalCode(),
                 LoanStatusConstants.ACTIVE_STATUSES
         )) {
+            log.warn("Rejected create request: customer already has active application");
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Customer already has an active application");
         }
 
@@ -98,24 +110,36 @@ public class LoanApplicationService {
 
         try {
             application = loanApplicationRepository.save(application);
+            log.info("Persisted new loan application {} with initial status {}", application.getId(), application.getStatus());
         } catch (DataIntegrityViolationException ex) {
+            log.warn("Create request failed due to active application uniqueness conflict", ex);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Customer already has an active application", ex);
         }
 
         int age = Period.between(birthDate, currentDate).getYears();
+        log.debug("Calculated applicant age={} for application {}", age, application.getId());
         if (age > maxCustomerAge) {
             application.setStatus(LoanStatus.REJECTED);
-            application.setRejectionReason(RejectionReason.CUSTOMER_TOO_OLD);
+            application.setRejectionReason(CUSTOMER_TOO_OLD);
             LoanApplication rejected = loanApplicationRepository.save(application);
+            log.info("Auto-rejected application {} due to age {} > max {}", rejected.getId(), age, maxCustomerAge);
             return loanApplicationResponseMapper.toResponse(rejected, Collections.emptyList());
         }
 
-        List<LoanPaymentSchedule> schedule = paymentScheduleService.buildAnnuitySchedule(application, currentDate);
+        List<LoanPaymentSchedule> schedule;
+        try {
+            schedule = paymentScheduleService.buildAnnuitySchedule(application, currentDate);
+        } catch (RuntimeException ex) {
+            log.error("Failed generating payment schedule for application {}", application.getId(), ex);
+            throw ex;
+        }
 
         loanPaymentScheduleRepository.saveAll(schedule);
+        log.debug("Saved {} payment schedule rows for application {}", schedule.size(), application.getId());
 
         application.setStatus(LoanStatus.IN_REVIEW);
         LoanApplication inReview = loanApplicationRepository.save(application);
+        log.info("Application {} moved to status {}", inReview.getId(), inReview.getStatus());
         return loanApplicationResponseMapper.toResponse(inReview, schedule);
     }
 
@@ -123,6 +147,7 @@ public class LoanApplicationService {
     public DecisionResponse approve(UUID id) {
         LoanApplication application = findById(id);
         if (application.getStatus() != LoanStatus.IN_REVIEW) {
+            log.warn("Approve rejected for application {} because status is {}", id, application.getStatus());
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only IN_REVIEW applications can be approved");
         }
 
@@ -136,18 +161,25 @@ public class LoanApplicationService {
     public DecisionResponse reject(UUID id, RejectLoanApplicationRequest request) {
         LoanApplication application = findById(id);
         if (application.getStatus() != LoanStatus.IN_REVIEW) {
+            log.warn("Reject denied for application {} because status is {}", id, application.getStatus());
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only IN_REVIEW applications can be rejected");
         }
 
+        String manualReason = request.getReason().trim();
         application.setStatus(LoanStatus.REJECTED);
-        application.setRejectionReason(request.getReason());
+        application.setRejectionReason(manualReason);
         LoanApplication saved = loanApplicationRepository.save(application);
+        log.info("Application {} rejected manually", saved.getId());
+        log.debug("Manual rejection reason for application {}: {}", saved.getId(), manualReason);
         return new DecisionResponse(saved.getId(), saved.getStatus(), saved.getRejectionReason());
     }
 
     private LoanApplication findById(UUID id) {
         return loanApplicationRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Loan application not found"));
+                .orElseThrow(() -> {
+                    log.warn("Loan application {} was not found", id);
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Loan application not found");
+                });
     }
 
 }

@@ -1,26 +1,38 @@
 package com.example.backend;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 
 @Component
+@Slf4j
 public class EstonianPersonalCodeValidator {
 
     private static final int[] WEIGHTS1 = {1, 2, 3, 4, 5, 6, 7, 8, 9, 1};
     private static final int[] WEIGHTS2 = {3, 4, 5, 6, 7, 8, 9, 1, 2, 3};
 
     public boolean isValid(String code) {
-        if (code == null || !code.matches("\\d{11}")) return false;
+        if (code == null || !code.matches("\\d{11}")) {
+            log.warn("Personal code validation failed: value is null or does not match 11-digit format");
+            return false;
+        }
 
         try {
             parseBirthDate(code);
             // LocalDate.of validates the BirthDate
         } catch (RuntimeException ex) {
+            log.warn("Personal code validation failed: invalid encoded birth date or century digit");
             return false;
         }
 
-        return getCheckDigit(code) == (code.charAt(10) - '0');
+        boolean valid = getCheckDigit(code) == (code.charAt(10) - '0');
+        if (!valid) {
+            log.warn("Personal code validation failed: checksum mismatch");
+        } else {
+            log.debug("Personal code validated successfully");
+        }
+        return valid;
     }
 
     private static int getCheckDigit(String code) {
@@ -63,6 +75,7 @@ public class EstonianPersonalCodeValidator {
 
     public LocalDate extractBirthDate(String code) {
         BirthDate bd = parseBirthDate(code);
+        log.debug("Extracted birth date from personal code");
         return LocalDate.of(bd.year(), bd.month(), bd.day());
     }
 }

@@ -8,6 +8,7 @@ import com.example.backend.loan.service.LoanApplicationService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +24,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/loan-applications")
 @RequiredArgsConstructor
+@Slf4j
 public class LoanApplicationController {
 
     private final LoanApplicationService loanApplicationService;
@@ -30,31 +32,46 @@ public class LoanApplicationController {
     @GetMapping
     @Operation(summary = "Get all loan applications")
     public List<LoanApplicationResponse> getAll() {
-        return loanApplicationService.getAllApplications();
+        log.info("Fetching all loan applications");
+        List<LoanApplicationResponse> applications = loanApplicationService.getAllApplications();
+        log.debug("Fetched {} loan applications", applications.size());
+        return applications;
     }
 
     @GetMapping("/in-review")
     @Operation(summary = "Get IN_REVIEW loan applications for manual review")
     public List<LoanApplicationResponse> getInReview() {
-        return loanApplicationService.getInReviewApplications();
+        log.info("Fetching IN_REVIEW applications");
+        List<LoanApplicationResponse> applications = loanApplicationService.getInReviewApplications();
+        log.debug("Fetched {} IN_REVIEW applications", applications.size());
+        return applications;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a loan application and run automatic workflow")
     public LoanApplicationResponse create(@Valid @RequestBody CreateLoanApplicationRequest request) {
-        return loanApplicationService.createApplication(request);
+        log.info("Received create loan application request");
+        LoanApplicationResponse response = loanApplicationService.createApplication(request);
+        log.info("Created loan application {} with status {}", response.getId(), response.getStatus());
+        return response;
     }
 
     @PostMapping("/{id}/approve")
     @Operation(summary = "Approve loan application in review")
     public DecisionResponse approve(@PathVariable UUID id) {
-        return loanApplicationService.approve(id);
+        log.info("Received approve request for application {}", id);
+        DecisionResponse response = loanApplicationService.approve(id);
+        log.info("Application {} approved with final status {}", id, response.getStatus());
+        return response;
     }
 
     @PostMapping("/{id}/reject")
     @Operation(summary = "Reject loan application in review")
     public DecisionResponse reject(@PathVariable UUID id, @Valid @RequestBody RejectLoanApplicationRequest request) {
-        return loanApplicationService.reject(id, request);
+        log.info("Received reject request for application {}", id);
+        DecisionResponse response = loanApplicationService.reject(id, request);
+        log.info("Application {} rejected with reason '{}'", id, response.getRejectionReason());
+        return response;
     }
 }

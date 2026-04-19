@@ -12,7 +12,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import com.example.backend.loan.LoanStatus;
-import com.example.backend.loan.RejectionReason;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -57,9 +56,8 @@ public class LoanApplication {
 	@Column(name = "status", nullable = false, length = 20)
 	private LoanStatus status;
 
-	@Enumerated(EnumType.STRING)
 	@Column(name = "rejection_reason", length = 50)
-	private RejectionReason rejectionReason;
+	private String rejectionReason;
 
 	@Column(name = "created_at", nullable = false)
 	private LocalDateTime createdAt;
