@@ -1,6 +1,5 @@
-package com.example.backend;
+package com.example.backend.loan.exception;
 
-import com.example.backend.api.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;

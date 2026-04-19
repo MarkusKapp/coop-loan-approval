@@ -1,4 +1,4 @@
-package com.example.backend.api;
+package com.example.backend.loan.exception;
 
 import org.springframework.http.HttpStatus;
 
